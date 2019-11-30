@@ -142,7 +142,6 @@ def getZoneMembers(zone,api):
     params = {"name": "{}".format(zone),"@location":"vsys","@vsys":"vsys1"}
     try:
         response = requests.get(url, params=params, headers=headers, verify=False)
-        print(response.text)
         return json.loads(response.text)['result']['entry'][0]['network']['layer3']['member']
     except requests.HTTPError as e:
         print(e)
@@ -172,20 +171,21 @@ def assoc_vRTR(vRTR,tunnel,api):
 
 def assoc_Zone(zone,tunnel,api):
     members = getZoneMembers(zone,api)
-    members.append(zone)
-    print(members)
+    members.append(tunnel)
     mydata = {"entry": [
         {
             '@name': zone,
-            'interface': {
-                'member' : members
+            'network': {
+                'layer3': {
+                        'member' : members
+                    }
+                }
             }
-        }
-    ]
+      ]
     }
     headers ={"X-PAN-KEY" : api.key}
-    url = 'https://{}/restapi/v9.1/Network/VirtualRouters'.format(api.hostname)
-    params = {"name":"{}".format(vRTR)}
+    url = 'https://{}/restapi/v9.1/Network/Zones'.format(api.hostname)
+    params = {"name": "{}".format(zone),"@location":"vsys","@vsys":"vsys1"}
     try:
         response = requests.put(url, json=mydata, params=params, headers=headers, verify=False)
         print(response.text)
@@ -222,10 +222,9 @@ x.key = (getKey(x))
 #init_vRTR(x)
 #init_zones(x)
 
-getZoneMembers('WAN',x)
-#newTun = createTunnel(getNextTunnel(x),x)
+newTun = createTunnel(getNextTunnel(x),x)
 #assoc_vRTR('default',newTun,x)
-#assoc_Zone('WAN',newTun,x)
+assoc_Zone('WAN',newTun,x)
 
 
 
