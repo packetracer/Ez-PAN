@@ -5,6 +5,10 @@ from xml.etree import cElementTree as ElementTree
 import requests
 from requests.packages.urllib3.exceptions import InsecureRequestWarning
 requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
+from numpy.random import seed
+from numpy.random import randint
+
+seed(2)
 
 ctx = ssl.create_default_context()
 ctx.check_hostname = False
@@ -63,35 +67,30 @@ class XmlDictConfig(dict):
             else:
                 self.update({element.tag: element.text})
 class api:
+    '''
+    Structure that contains API connection information and API Key
+    '''
     def __init__(self,hostname,user,pwrd):
         self.hostname = hostname
         self.user = user
         self.pwrd = pwrd
     key = ''
 
+def genINT():
+    return randint(1,9999,1)
+
 def getKey(api):
+    '''
+    Given an instantiated API class with hostname, username, and password
+    return valid API key for API calls
+    :param api:
+    :return:
+    '''
     url = "https://{0}/api/?type=keygen&user={1}&password={2}".format(api.hostname,api.user,api.pwrd)
     request = urllib.request.urlopen(url,context=ctx)
     if (request.getcode() == 200):
         response = str(request.read())
         return (str(response).split('<key>')[1].split('</key>')[0])
-
-def testAPI(api):
-    url = "https://{0}//api/?type=op&cmd=<show><system><info></info></system></show>&key={1}".format(api.hostname,api.key)
-    request = urllib.request.urlopen(url,context=ctx)
-    if request.getcode()==200:
-        return str(request.read()).split('b\'')[1]
-
-def getInterfaces(api):
-    req = urllib.request.Request('https://{}}/restapi/v9.1/Network/TunnelInterfaces?name=tunnel'.format(api.hostname))
-    req.add_header('X-PAN-KEY',api.key)
-    req.add_header('Content-Type','application/json')
-    try:
-        resp = urllib.request.urlopen(req,context=ctx)
-        print(resp.getcode())
-        print(resp.read())
-    except urllib.request.HTTPError as e:
-        print(e)
 
 def createTunnel(next,api):
     tunnel_name = "tunnel.{}".format(next)
@@ -124,7 +123,22 @@ def getNextTunnel(api):
         d = json.loads(resp.read())
         index = int(d['result']['@count'])-1
         nextTunnel = (int(d['result']['entry'][index]['@name'].split('tunnel.')[1]) + 1)
-        return nextTunnel
+        if nextTunnel < 10000:
+            return nextTunnel
+        else:
+            tunID = []
+            print("Max tunnel subinterface value in use- generating random tunnel interface")
+            for item in d['result']['entry']:
+                tunID.append(item['@name'])
+            ID = int(genINT())
+            i=1
+            while ID in tunID:
+                i+=1
+                seed(i)
+                ID = int(genINT())
+            print("selected "+str(ID))
+            return int(ID)
+
 
 def getVRTRMembers(vRTR,api):
     headers = {"X-PAN-KEY": api.key}
@@ -165,7 +179,7 @@ def assoc_vRTR(vRTR,tunnel,api):
     try:
         response = requests.put(url, json=mydata, params=params, headers=headers, verify=False)
         if response.status_code == 200:
-            print("Tunnel {0} successfully associated to Virtual Route '{1}'.".format(tunnel,vRTR))
+            print("Tunnel '{0}' successfully associated to Virtual Route '{1}'.".format(tunnel,vRTR))
         else:
             print("HTTP "+response.status_code)
             print(response.reason)
@@ -192,7 +206,10 @@ def assoc_Zone(zone,tunnel,api):
     try:
         response = requests.put(url, json=mydata, params=params, headers=headers, verify=False)
         if response.status_code==200:
-            print("")
+            print("Tunnel '{0}' successfully associated to Zone '{1}'.".format(tunnel,zone))
+        else:
+            print("HTTP " + response.status_code)
+            print(response.reason)
     except requests.HTTPError as e:
         print(e)
 
