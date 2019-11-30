@@ -3,8 +3,8 @@ import urllib.request,urllib.parse
 import ssl
 from xml.etree import cElementTree as ElementTree
 import requests
-import lxml.etree as ET
-from bs4 import BeautifulSoup
+from requests.packages.urllib3.exceptions import InsecureRequestWarning
+requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
 
 ctx = ssl.create_default_context()
 ctx.check_hostname = False
@@ -146,11 +146,10 @@ def getZoneMembers(zone,api):
     except requests.HTTPError as e:
         print(e)
 
-
 def assoc_vRTR(vRTR,tunnel,api):
     members = getVRTRMembers(vRTR,api)
     members.append(tunnel)
-    print(members)
+
     mydata = {"entry": [
         {
             '@name': vRTR,
@@ -165,7 +164,11 @@ def assoc_vRTR(vRTR,tunnel,api):
     params = {"name":"{}".format(vRTR)}
     try:
         response = requests.put(url, json=mydata, params=params, headers=headers, verify=False)
-        print(response.text)
+        if response.status_code == 200:
+            print("Tunnel {0} successfully associated to Virtual Route '{1}'.".format(tunnel,vRTR))
+        else:
+            print("HTTP "+response.status_code)
+            print(response.reason)
     except requests.HTTPError as e:
         print(e)
 
@@ -188,7 +191,8 @@ def assoc_Zone(zone,tunnel,api):
     params = {"name": "{}".format(zone),"@location":"vsys","@vsys":"vsys1"}
     try:
         response = requests.put(url, json=mydata, params=params, headers=headers, verify=False)
-        print(response.text)
+        if response.status_code==200:
+            print("")
     except requests.HTTPError as e:
         print(e)
 
@@ -197,9 +201,10 @@ def init_vRTR(api):
     headers = {"X-PAN-KEY": api.key}
     response = requests.get(url,headers=headers,verify=False)
     mydict = json.loads(response.text)
-    #print(mydict)
+
     for item in mydict['result']['entry']:
         VRTRS.append(item['@name'])
+    print("vRTRs initialized")
 
 def init_zones(api):
     url = "https://{}/restapi/v9.1/Network/Zones".format(api.hostname)
@@ -216,15 +221,13 @@ def init_zones(api):
     for item in mydict['result']['entry']:
         ZONES.append(item['@name'])
 
+    print("Zones initialized")
 
 x = api(HOST,USER,PWRD)
 x.key = (getKey(x))
-#init_vRTR(x)
-#init_zones(x)
+init_vRTR(x)
+init_zones(x)
 
 newTun = createTunnel(getNextTunnel(x),x)
-#assoc_vRTR('default',newTun,x)
+assoc_vRTR('default',newTun,x)
 assoc_Zone('WAN',newTun,x)
-
-
-
